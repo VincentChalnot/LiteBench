@@ -28,6 +28,10 @@ class SampleResult(BaseModel):
     prompt_tokens: int = 0
     completion_tokens: int = 0
     error: str | None = None
+    # Populated only for AgentTask rollouts. Each entry records one tool call's
+    # {name, arguments, result, error}. None for single-turn tasks.
+    tool_calls: list[dict[str, Any]] | None = None
+    steps: int = 0
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

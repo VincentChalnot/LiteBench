@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import json
 import uuid
 from datetime import datetime
+from typing import Any
 
+from litebench.agent.base import AgentTask, AgentTrace, Tool, ToolCall
 from litebench.core.models import RunSummary, Sample, SampleResult
 from litebench.llm.client import LLMClient
 from litebench.tasks.base import Task
@@ -78,8 +81,11 @@ class Runner:
         return summary, results
 
     async def _eval_sample(self, sample: Sample) -> SampleResult:
+        if isinstance(self.task, AgentTask):
+            return await self._eval_agent_sample(sample, self.task)
+
         prompt = self.task.build_prompt(sample)
-        messages: list[dict[str, str]] = []
+        messages: list[dict[str, Any]] = []
         system = self.task.system_prompt()
         if system:
             messages.append({"role": "system", "content": system})
@@ -114,4 +120,122 @@ class Runner:
                 latency_ms=0,
                 error=f"{type(e).__name__}: {e}"[:500],
                 metadata=sample.metadata,
+            )
+
+    async def _eval_agent_sample(self, sample: Sample, task: AgentTask) -> SampleResult:
+        tools = task.tools()
+        tools_by_name: dict[str, Tool] = {t.name: t for t in tools}
+        tool_schemas = [t.to_openai_tool() for t in tools]
+
+        prompt = task.build_prompt(sample)
+        messages: list[dict[str, Any]] = []
+        system = task.system_prompt()
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+
+        trace_calls: list[ToolCall] = []
+        total_prompt_tokens = 0
+        total_completion_tokens = 0
+        total_latency_ms = 0
+        final_answer = ""
+        stop_reason = "complete"
+        steps = 0
+
+        try:
+            for step in range(task.max_steps):
+                steps = step + 1
+                out = await self.client.chat(messages, tools=tool_schemas)
+                total_prompt_tokens += out.prompt_tokens
+                total_completion_tokens += out.completion_tokens
+                total_latency_ms += out.latency_ms
+
+                if not out.tool_calls:
+                    # Model gave up on tools and answered in text — accept that as the final answer.
+                    final_answer = out.text
+                    break
+
+                # Record the assistant message with tool_calls verbatim so the next
+                # turn's message list is shaped correctly for the API.
+                messages.append({
+                    "role": "assistant",
+                    "content": out.text or None,
+                    "tool_calls": out.tool_calls,
+                })
+
+                terminated = False
+                for tc in out.tool_calls:
+                    fn = tc.get("function", {})
+                    name = fn.get("name", "")
+                    raw_args = fn.get("arguments", "{}")
+                    try:
+                        args = json.loads(raw_args) if isinstance(raw_args, str) else dict(raw_args)
+                    except json.JSONDecodeError:
+                        args = {}
+
+                    tool = tools_by_name.get(name)
+                    if tool is None:
+                        result_str = f"Error: unknown tool '{name}'"
+                        err = result_str
+                    else:
+                        try:
+                            result_str = tool.handler(**args)
+                            err = None
+                        except Exception as e:
+                            result_str = f"Error: {type(e).__name__}: {e}"
+                            err = str(e)
+
+                    trace_calls.append(ToolCall(name=name, arguments=args, result=result_str, error=err))
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.get("id", ""),
+                        "content": result_str,
+                    })
+
+                    if name == "final_answer" and err is None:
+                        final_answer = args.get("answer", result_str)
+                        terminated = True
+
+                if terminated:
+                    break
+            else:
+                stop_reason = "max_steps"
+
+            trace = AgentTrace(
+                final_answer=final_answer,
+                tool_calls=trace_calls,
+                steps=steps,
+                stop_reason=stop_reason,
+            )
+            score, correct = task.score_trace(sample, trace)
+
+            return SampleResult(
+                sample_id=sample.id,
+                input=sample.input,
+                target=sample.target,
+                prediction=final_answer,
+                score=score,
+                correct=correct,
+                latency_ms=total_latency_ms,
+                prompt_tokens=total_prompt_tokens,
+                completion_tokens=total_completion_tokens,
+                tool_calls=[{"name": tc.name, "arguments": tc.arguments, "result": tc.result, "error": tc.error} for tc in trace_calls],
+                steps=steps,
+                metadata={**sample.metadata, "stop_reason": stop_reason},
+            )
+        except Exception as e:
+            return SampleResult(
+                sample_id=sample.id,
+                input=sample.input,
+                target=sample.target,
+                prediction=final_answer,
+                score=0.0,
+                correct=False,
+                latency_ms=total_latency_ms,
+                prompt_tokens=total_prompt_tokens,
+                completion_tokens=total_completion_tokens,
+                error=f"{type(e).__name__}: {e}"[:500],
+                tool_calls=[{"name": tc.name, "arguments": tc.arguments, "result": tc.result, "error": tc.error} for tc in trace_calls],
+                steps=steps,
+                metadata={**sample.metadata, "stop_reason": "error"},
             )

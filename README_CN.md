@@ -149,11 +149,30 @@ $ litebench compare <run-id-1> <run-id-2>
 | `truthfulqa` | MC1 单选 | `truthful_qa` (multiple_choice) |
 | `arc` | AI2 科学考试,`--arc-easy` 切换 | `allenai/ai2_arc` |
 
+## Agent 模式
+
+`AgentTask` 子类声明工具,LiteBench 自动跑多轮 rollout 代替单次 chat:
+
+```bash
+litebench run gsm8k-agent -m gpt-5 -n 50
+```
+
+内置的 `gsm8k-agent` 任务给模型一个 `calculator` 工具和一个 `final_answer` 工具,scorer 看它最后提交的数字。rollout 全程记录 (tool name / 参数 / 结果) 进 SQLite,`--json-out` 可导出:
+
+```
+gsm8k-agent-0 | correct=True | steps=3 | final="18"
+  → calculator({'expression': '16 - 3 - 4'}) = 9
+  → calculator({'expression': '9 * 2'}) = 18
+  → final_answer({'answer': '18'}) = 18
+```
+
+自定义 agent task 写 `AgentTask` 子类 —— 参考 `src/litebench/tasks/gsm8k_agent.py`。
+
 ## 路线图
 
 - ✅ Phase 1 — MVP CLI、3 任务、SQLite 历史
 - ✅ Phase 2 — 6 任务、YAML 自定义、LLM judge、31 个回归单测
-- ⏳ Phase 3 — Agent 模式 (litellm function calling 的 tool-use eval)
+- ✅ Phase 3 — Agent 模式 (litellm function calling 的 tool-use eval)、10 个新单测
 - ⏳ Phase 4 — Web 面板 (FastAPI + React, `litebench serve`)
 
 ## 贡献

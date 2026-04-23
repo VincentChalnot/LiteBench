@@ -166,11 +166,34 @@ $ litebench compare 10ab7654 86d845e0
 | `truthfulqa` | MC1 single-correct multiple choice | `truthful_qa` (multiple_choice) |
 | `arc` | AI2 science exam; `--arc-easy` for Easy split | `allenai/ai2_arc` (Challenge) |
 
+## Agent mode
+
+Pass a task that exposes tools and LiteBench runs a full multi-turn rollout
+instead of a single chat:
+
+```bash
+litebench run gsm8k-agent -m gpt-5 -n 50
+```
+
+The built-in `gsm8k-agent` task gives the model a `calculator` tool and a
+`final_answer` tool, then scores whichever number it submits. The recorded
+per-sample trace (tool name, arguments, result) is kept in the SQLite history
+and can be dumped with `--json-out`:
+
+```
+gsm8k-agent-0 | correct=True | steps=3 | final="18"
+  → calculator({'expression': '16 - 3 - 4'}) = 9
+  → calculator({'expression': '9 * 2'}) = 18
+  → final_answer({'answer': '18'}) = 18
+```
+
+Custom agent tasks are a Python subclass (`AgentTask`) — see `src/litebench/tasks/gsm8k_agent.py`.
+
 ## Roadmap
 
 - ✅ Phase 1 — MVP CLI, 3 tasks, SQLite history
 - ✅ Phase 2 — 6 tasks, YAML custom, LLM judge, 31 regression tests
-- ⏳ Phase 3 — Agent mode (tool-use eval via litellm function calling)
+- ✅ Phase 3 — Agent mode (tool-use eval via litellm function calling), 10 more tests
 - ⏳ Phase 4 — Web dashboard (FastAPI + React, `litebench serve`)
 
 ## Contributing
