@@ -64,9 +64,9 @@ litebench = "litebench.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/litebench"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"src/litebench/server/static" = "litebench/server/static"
+# Non-Python static assets (HTML/CSS/JS bundled into the wheel). Without this,
+# hatchling only picks up *.py under packages and the web UI 404s at runtime.
+artifacts = ["src/litebench/server/static/*"]
 
 [tool.ruff]
 line-length = 100
