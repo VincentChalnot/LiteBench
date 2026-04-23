@@ -78,28 +78,36 @@ class Storage:
                     json.dumps(summary.config),
                 ),
             )
+            rows = []
+            for r in results:
+                # Fold agent-trace fields into metadata so the schema doesn't
+                # need to grow dedicated columns; the server/UI reads them back
+                # out of the parsed metadata dict.
+                meta: dict = dict(r.metadata) if r.metadata else {}
+                if r.tool_calls is not None:
+                    meta["tool_calls"] = r.tool_calls
+                if r.steps:
+                    meta["steps"] = r.steps
+                rows.append((
+                    summary.run_id,
+                    r.sample_id,
+                    r.input,
+                    json.dumps(r.target) if isinstance(r.target, list) else r.target,
+                    r.prediction,
+                    r.score,
+                    1 if r.correct else 0,
+                    r.latency_ms,
+                    r.prompt_tokens,
+                    r.completion_tokens,
+                    r.error,
+                    json.dumps(meta),
+                ))
             await db.executemany(
                 """INSERT OR REPLACE INTO samples
                 (run_id, sample_id, input, target, prediction, score, correct,
                  latency_ms, prompt_tokens, completion_tokens, error, metadata)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                [
-                    (
-                        summary.run_id,
-                        r.sample_id,
-                        r.input,
-                        json.dumps(r.target) if isinstance(r.target, list) else r.target,
-                        r.prediction,
-                        r.score,
-                        1 if r.correct else 0,
-                        r.latency_ms,
-                        r.prompt_tokens,
-                        r.completion_tokens,
-                        r.error,
-                        json.dumps(r.metadata),
-                    )
-                    for r in results
-                ],
+                rows,
             )
             await db.commit()
 

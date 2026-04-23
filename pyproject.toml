@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "litebench"
-version = "0.2.0"
+version = "0.3.0"
 description = "A pip-installable benchmark runner for LLMs and agents. 5 minutes to your first eval."
 readme = "README.md"
 license = { text = "MIT" }
@@ -64,6 +64,9 @@ litebench = "litebench.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/litebench"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/litebench/server/static" = "litebench/server/static"
 
 [tool.ruff]
 line-length = 100

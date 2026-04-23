@@ -168,12 +168,27 @@ gsm8k-agent-0 | correct=True | steps=3 | final="18"
 
 自定义 agent task 写 `AgentTask` 子类 —— 参考 `src/litebench/tasks/gsm8k_agent.py`。
 
+## Web 面板
+
+```bash
+pip install 'litebench[web]'
+litebench serve
+# → 浏览器打开 http://127.0.0.1:8600
+```
+
+三个 tab:
+- **Runs** — 历史 run 列表,点进去看每个样本的详情 (agent 任务会列出 tool 调用轨迹)
+- **Compare** — (任务 × 模型) 准确率热力图,显示每个组合的最新 run
+- **Tasks** — 内置任务清单
+
+纯单文件 HTML + vanilla JS,不用 React、不用构建步骤,离线可用。
+
 ## 路线图
 
 - ✅ Phase 1 — MVP CLI、3 任务、SQLite 历史
 - ✅ Phase 2 — 6 任务、YAML 自定义、LLM judge、31 个回归单测
 - ✅ Phase 3 — Agent 模式 (litellm function calling 的 tool-use eval)、10 个新单测
-- ⏳ Phase 4 — Web 面板 (FastAPI + React, `litebench serve`)
+- ✅ Phase 4 — Web 面板 (`litebench serve`)、5 个新单测
 
 ## 贡献
 

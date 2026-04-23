@@ -161,6 +161,23 @@ def runs(limit: int, task: str | None) -> None:
 
 
 @main.command()
+@click.option("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1).")
+@click.option("--port", default=8600, type=int, help="Port (default: 8600).")
+def serve(host: str, port: int) -> None:
+    """Start the local web dashboard over the SQLite run history."""
+    try:
+        import uvicorn
+    except ImportError:
+        console.print("[red]Web UI requires the [web] extras. Install with:[/] [cyan]pip install 'litebench[web]'[/]")
+        sys.exit(1)
+
+    from litebench.server.app import create_app
+
+    console.print(f"[cyan]LiteBench[/] dashboard on [bold]http://{host}:{port}[/]  (Ctrl+C to stop)")
+    uvicorn.run(create_app(), host=host, port=port, log_level="warning")
+
+
+@main.command()
 @click.argument("run_ids", nargs=-1, required=True)
 def compare(run_ids: tuple[str, ...]) -> None:
     """Compare N past runs side-by-side (pass the short 8-char run prefixes)."""

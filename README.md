@@ -189,12 +189,27 @@ gsm8k-agent-0 | correct=True | steps=3 | final="18"
 
 Custom agent tasks are a Python subclass (`AgentTask`) — see `src/litebench/tasks/gsm8k_agent.py`.
 
+## Web dashboard
+
+```bash
+pip install 'litebench[web]'
+litebench serve
+# → open http://127.0.0.1:8600
+```
+
+Three tabs:
+- **Runs** — every run you've saved, clickable for full sample-by-sample breakdown (including per-sample agent tool traces).
+- **Compare** — accuracy heatmap across (task × model), shows the latest run per pair.
+- **Tasks** — the built-in task registry.
+
+Pure single-file HTML + vanilla JS — no React, no build step, works offline.
+
 ## Roadmap
 
 - ✅ Phase 1 — MVP CLI, 3 tasks, SQLite history
 - ✅ Phase 2 — 6 tasks, YAML custom, LLM judge, 31 regression tests
 - ✅ Phase 3 — Agent mode (tool-use eval via litellm function calling), 10 more tests
-- ⏳ Phase 4 — Web dashboard (FastAPI + React, `litebench serve`)
+- ✅ Phase 4 — Web dashboard (`litebench serve`), 5 more tests
 
 ## Contributing
 
