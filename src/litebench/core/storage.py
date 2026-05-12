@@ -134,6 +134,18 @@ class Storage:
             row = await cursor.fetchone()
         return self._row_to_summary(row) if row else None
 
+    async def list_samples(self, run_id: str) -> list[SampleResult]:
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            cursor = await db.execute(
+                """SELECT sample_id, input, target, prediction, score, correct,
+                          latency_ms, prompt_tokens, completion_tokens, error, metadata
+                   FROM samples WHERE run_id = ? ORDER BY sample_id""",
+                (run_id,),
+            )
+            rows = await cursor.fetchall()
+        return [self._row_to_sample(r) for r in rows]
+
     @staticmethod
     def _row_to_summary(row: aiosqlite.Row) -> RunSummary:
         return RunSummary(
@@ -150,3 +162,33 @@ class Storage:
             finished_at=datetime.fromisoformat(row["finished_at"]),
             config=json.loads(row["config"]),
         )
+
+    @staticmethod
+    def _row_to_sample(row: aiosqlite.Row) -> SampleResult:
+        meta = json.loads(row["metadata"])
+        if not isinstance(meta, dict):
+            meta = {}
+        target = _decode_target(row["target"])
+        return SampleResult(
+            sample_id=row["sample_id"],
+            input=row["input"],
+            target=target,
+            prediction=row["prediction"],
+            score=row["score"],
+            correct=bool(row["correct"]),
+            latency_ms=row["latency_ms"],
+            prompt_tokens=row["prompt_tokens"],
+            completion_tokens=row["completion_tokens"],
+            error=row["error"],
+            tool_calls=meta.get("tool_calls"),
+            steps=int(meta.get("steps") or 0),
+            metadata={k: v for k, v in meta.items() if k not in {"tool_calls", "steps"}},
+        )
+
+
+def _decode_target(raw: str) -> str | list[str]:
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError:
+        return raw
+    return value if isinstance(value, list) else raw

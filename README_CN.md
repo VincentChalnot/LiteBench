@@ -31,6 +31,7 @@ litebench run ./my-task.yaml -m gpt-4o-mini
 # 对比不同模型
 litebench runs
 litebench compare <run-id-1> <run-id-2>
+litebench export <run-id> -o run.json
 ```
 
 ## 特性
@@ -131,11 +132,13 @@ scorer: string
 samples_jsonl: ./data.jsonl
 ```
 
-### 对比 run
+### 对比与导出 run
 
 ```bash
 $ litebench runs
 $ litebench compare <run-id-1> <run-id-2>
+$ litebench export <run-id> -o gsm8k-gpt5.json
+$ litebench export <run-id> --format jsonl -o gsm8k-gpt5.jsonl
 ```
 
 ## 内置任务一览

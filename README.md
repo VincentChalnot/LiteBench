@@ -33,6 +33,7 @@ litebench run ./my-task.yaml -m gpt-4o-mini
 # Compare models
 litebench runs
 litebench compare <run-id-1> <run-id-2>
+litebench export <run-id> -o run.json
 ```
 
 ## Features
@@ -153,6 +154,13 @@ $ litebench compare 10ab7654 86d845e0
 │ gpt-4o      │ gsm8k │ 100 │    89.0% │       3710ms │  8,700 / 23.9k│
 │ gpt-4o-mini │ gsm8k │ 100 │    80.0% │       4230ms │  8,700 / 22.3k│
 └─────────────┴───────┴─────┴──────────┴──────────────┴───────────────┘
+```
+
+Export a saved run, including every sample, for reports or offline analysis:
+
+```bash
+litebench export 10ab7654 -o gsm8k-gpt4o.json
+litebench export 10ab7654 --format jsonl -o gsm8k-gpt4o.jsonl
 ```
 
 ## Built-in tasks

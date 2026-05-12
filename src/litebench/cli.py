@@ -10,6 +10,7 @@ from rich.progress import BarColumn, Progress, TaskProgressColumn, TextColumn, T
 
 from litebench import __version__
 from litebench.config import DB_PATH, ensure_dirs, resolve_model
+from litebench.core.models import RunSummary, SampleResult
 from litebench.core.runner import Runner
 from litebench.core.storage import Storage
 from litebench.llm.client import LLMClient
@@ -197,6 +198,77 @@ def compare(run_ids: tuple[str, ...]) -> None:
         print_compare(wanted)
 
     asyncio.run(_go())
+
+
+@main.command("export")
+@click.argument("run_id")
+@click.option(
+    "--format",
+    "fmt",
+    type=click.Choice(["json", "jsonl"]),
+    default="json",
+    show_default=True,
+    help="Export format.",
+)
+@click.option(
+    "--output",
+    "-o",
+    type=click.Path(path_type=Path),
+    default=None,
+    help="Output path. Defaults to litebench-<run>.json/jsonl.",
+)
+def export_cmd(run_id: str, fmt: str, output: Path | None) -> None:
+    """Export one saved run, including per-sample results."""
+    ensure_dirs()
+
+    async def _go():
+        storage = Storage(DB_PATH)
+        await storage.init()
+        runs = await storage.list_runs(limit=500)
+        matches = [r for r in runs if r.run_id.startswith(run_id)]
+        if not matches:
+            console.print(f"[red]Run not found:[/] {run_id}")
+            sys.exit(1)
+        if len(matches) > 1:
+            console.print(f"[red]Run prefix is ambiguous:[/] {run_id}")
+            for r in matches[:10]:
+                console.print(f"  {r.run_id[:12]}  {r.task} · {r.model}")
+            sys.exit(1)
+
+        summary = matches[0]
+        samples = await storage.list_samples(summary.run_id)
+        out_path = output or Path(f"litebench-{summary.run_id[:8]}.{fmt}")
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if fmt == "json":
+            out_path.write_text(
+                jsonlib.dumps(_export_payload(summary, samples), indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+        else:
+            lines = [
+                jsonlib.dumps(
+                    {
+                        "run_id": summary.run_id,
+                        "task": summary.task,
+                        "model": summary.model,
+                        "sample": sample.model_dump(mode="json"),
+                    },
+                    ensure_ascii=False,
+                )
+                for sample in samples
+            ]
+            out_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+        console.print(f"[green]Exported {len(samples)} samples:[/] {out_path}")
+
+    asyncio.run(_go())
+
+
+def _export_payload(summary: RunSummary, samples: list[SampleResult]) -> dict:
+    return {
+        "summary": summary.model_dump(mode="json"),
+        "results": [sample.model_dump(mode="json") for sample in samples],
+    }
 
 
 if __name__ == "__main__":
