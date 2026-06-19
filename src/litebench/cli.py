@@ -23,9 +23,6 @@ from litebench.output.console import (
     print_task_list,
 )
 from litebench.tasks import get_task, list_tasks
-from litebench.tasks.arc import ARCTask
-from litebench.tasks.custom import CustomTask
-from litebench.tasks.mmlu import MMLUTask
 
 
 @click.group()
@@ -79,19 +76,11 @@ def run(
     ensure_dirs()
     resolved = resolve_model(model)
 
-    task_path = Path(task_name)
-    if task_path.exists() and task_path.suffix.lower() in {".yaml", ".yml"}:
-        task = CustomTask(task_path)
-    elif task_name.lower() == "mmlu" and subject:
-        task = MMLUTask(subject=subject)
-    elif task_name.lower() == "arc" and arc_easy:
-        task = ARCTask(config="ARC-Easy")
-    else:
-        try:
-            task = get_task(task_name)
-        except ValueError as e:
-            console.print(f"[red]{e}[/]")
-            sys.exit(1)
+    try:
+        task = get_task(task_name, subject=subject, arc_easy=arc_easy)
+    except ValueError as e:
+        console.print(f"[red]{e}[/]")
+        sys.exit(1)
 
     console.print(f"Loading [cyan]{task.name}[/] samples...")
     sample_list = list(task.load_samples(n=samples, split=split))
